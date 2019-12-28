@@ -7,6 +7,7 @@
 #include <lib/dvb/subtitle.h>
 #include <lib/dvb/teletext.h>
 #include <gst/gst.h>
+#include <gst/app/gstappsink.h>
 /* for subtitles */
 #include <lib/gui/esubtitle.h>
 
@@ -42,6 +43,7 @@ public:
 	int isPlayable(const eServiceReference &ref, const eServiceReference &ignore, bool simulate) { return 1; }
 	long long getFileSize(const eServiceReference &ref);
 	RESULT getEvent(const eServiceReference &ref, ePtr<eServiceEvent> &ptr, time_t start_time);
+
 };
 
 class eStreamBufferInfo: public iStreamBufferInfo
@@ -118,7 +120,7 @@ typedef struct _GstElement GstElement;
 
 typedef enum { atUnknown, atMPEG, atMP3, atAC3, atDTS, atAAC, atPCM, atOGG, atFLAC, atWMA } audiotype_t;
 typedef enum { stUnknown, stPlainText, stSSA, stASS, stSRT, stVOB, stPGS } subtype_t;
-typedef enum { ctNone, ctMPEGTS, ctMPEGPS, ctMKV, ctAVI, ctMP4, ctVCD, ctCDA, ctASF, ctOGG, ctWEBM } containertype_t;
+typedef enum { ctNone, ctMPEGTS, ctMPEGPS, ctMKV, ctAVI, ctMP4, ctVCD, ctCDA, ctASF, ctOGG } containertype_t;
 
 class eServiceMP3: public iPlayableService, public iPauseableService,
 	public iServiceInformation, public iSeekableService, public iAudioTrackSelection, public iAudioChannelSelection,
@@ -150,6 +152,7 @@ public:
 	RESULT subServices(ePtr<iSubserviceList> &ptr) { ptr = 0; return -1; }
 	RESULT timeshift(ePtr<iTimeshiftService> &ptr) { ptr = 0; return -1; }
 //	RESULT cueSheet(ePtr<iCueSheet> &ptr) { ptr = 0; return -1; }
+	void setQpipMode(bool value, bool audio) { }
 
 		// iCueSheet
 	PyObject *getCutList();
@@ -159,8 +162,6 @@ public:
 	RESULT rdsDecoder(ePtr<iRdsDecoder> &ptr) { ptr = 0; return -1; }
 	RESULT keys(ePtr<iServiceKeys> &ptr) { ptr = 0; return -1; }
 	RESULT stream(ePtr<iStreamableService> &ptr) { ptr = 0; return -1; }
-
-	void setQpipMode(bool value, bool audio) { }
 
 		// iPausableService
 	RESULT pause();
@@ -241,9 +242,8 @@ public:
 		containertype_t containertype;
 		bool is_video;
 		bool is_streaming;
-		bool is_hls;
 		sourceStream()
-			:audiotype(atUnknown), containertype(ctNone), is_video(FALSE), is_streaming(FALSE), is_hls(FALSE)
+			:audiotype(atUnknown), containertype(ctNone), is_video(FALSE), is_streaming(FALSE)
 		{
 		}
 	};
@@ -308,7 +308,6 @@ private:
 	bool m_use_prefillbuffer;
 	bool m_paused;
 	bool m_seek_paused;
-	bool m_autoaudio;
 	/* cuesheet load check */
 	bool m_cuesheet_loaded;
 	/* servicemMP3 chapter TOC support CVR */
@@ -329,7 +328,6 @@ private:
 	int m_state;
 	GstElement *m_gst_playbin, *audioSink, *videoSink;
 	GstTagList *m_stream_tags;
-	bool m_coverart;
 
 	eFixedMessagePump<ePtr<GstMessageContainer> > m_pump;
 
@@ -380,11 +378,14 @@ private:
 
 	RESULT seekToImpl(pts_t to);
 
-	gint m_aspect, m_width, m_height, m_framerate, m_progressive, m_gamma;
+	gint m_aspect, m_width, m_height, m_framerate, m_progressive;
 	std::string m_useragent;
 	std::string m_extra_headers;
 	RESULT trickSeek(gdouble ratio);
-	ePtr<iTSMPEGDecoder> m_decoder; // for showSinglePic when radio
+
+	void setupAppsink();
+	static GstFlowReturn displayFrame(GstAppSink *appsink, gpointer user_data);
+
 };
 
 #endif
